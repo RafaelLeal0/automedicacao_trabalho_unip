@@ -254,51 +254,44 @@ if (themeToggle) {
 
 document.addEventListener('DOMContentLoaded', initTheme);
 
-// Accessibility: Text-to-Speech for selected text
-document.addEventListener('DOMContentLoaded', () => {
-    const speakBtn = document.getElementById('speak-btn');
+// Accessibility: Text-to-Speech with responsive behavior
+(function () {
     let isSpeaking = false;
     let ptVoice = null;
+    let floatingButton = null;
 
-    // Load voices
     function loadVoices() {
         const voices = speechSynthesis.getVoices();
-        ptVoice = voices.find(voice => voice.lang.startsWith('pt-BR'));
+        ptVoice = voices.find(voice => voice.lang.startsWith('pt-BR')) || null;
     }
 
     if (speechSynthesis.onvoiceschanged !== undefined) {
         speechSynthesis.onvoiceschanged = loadVoices;
     }
-    loadVoices(); // In case already loaded
+    loadVoices();
 
-    speakBtn.addEventListener('click', () => {
-        if (isSpeaking) return;
+    function speakText(text, button) {
+        if (isSpeaking || !text.trim()) return;
 
-        const selectedText = window.getSelection().toString().trim();
-
-        if (!selectedText) {
-            showMessage('Por favor, selecione um texto para ouvir.');
-            return;
+        if (speechSynthesis.speaking) {
+            speechSynthesis.cancel();
         }
 
-        speakText(selectedText);
-    });
-
-    function speakText(text) {
         const utterance = new SpeechSynthesisUtterance(text);
         utterance.lang = 'pt-BR';
         utterance.rate = 0.8;
-
         if (ptVoice) utterance.voice = ptVoice;
 
         utterance.onstart = () => {
             isSpeaking = true;
-            speakBtn.classList.add('speaking');
+            if (button) button.classList.add('speaking');
+            if (floatingButton) floatingButton.classList.add('speaking');
         };
 
         utterance.onend = () => {
             isSpeaking = false;
-            speakBtn.classList.remove('speaking');
+            if (button) button.classList.remove('speaking');
+            if (floatingButton) floatingButton.classList.remove('speaking');
         };
 
         speechSynthesis.speak(utterance);
@@ -307,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function showMessage(msg) {
         const msgDiv = document.createElement('div');
         msgDiv.textContent = msg;
+        msgDiv.setAttribute('role', 'status');
         msgDiv.style.position = 'fixed';
         msgDiv.style.bottom = '90px';
         msgDiv.style.right = '20px';
@@ -317,15 +311,124 @@ document.addEventListener('DOMContentLoaded', () => {
         msgDiv.style.boxShadow = 'var(--shadow)';
         msgDiv.style.zIndex = '1002';
         msgDiv.style.fontSize = '14px';
-        msgDiv.style.maxWidth = '200px';
+        msgDiv.style.maxWidth = '220px';
         msgDiv.style.wordWrap = 'break-word';
-
         document.body.appendChild(msgDiv);
 
         setTimeout(() => {
             if (document.body.contains(msgDiv)) {
                 document.body.removeChild(msgDiv);
             }
-        }, 3000);
+        }, 2500);
     }
-});
+
+    function getCardText(card) {
+        const title = card.querySelector('h3')?.textContent.trim() || '';
+        const paragraph = card.querySelector('p')?.textContent.trim() || '';
+        return title ? `${title}. ${paragraph}` : paragraph;
+    }
+
+    function addMobileSpeakButtons() {
+        removeMobileSpeakButtons();
+
+        const selectors = ['.card', '.noticia', '.dado', '.evitar-card', '.highlight', '.sobre-texto'];
+        const cards = document.querySelectorAll(selectors.join(','));
+
+        cards.forEach(card => {
+            if (card.querySelector('.card-speak-btn')) return;
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'card-speak-btn';
+            btn.setAttribute('aria-label', 'Ouvir texto do card');
+            btn.textContent = '🔊 Ouvir';
+
+            btn.addEventListener('click', e => {
+                e.stopPropagation();
+                const text = getCardText(card);
+                if (!text) {
+                    showMessage('Não há conteúdo para ouvir neste card.');
+                    return;
+                }
+                speakText(text, btn);
+            });
+
+            // Se for noticia no mobile, coloque o botão próximo da fonte
+            const fonte = card.querySelector('.fonte');
+            if (fonte) {
+                let footer = card.querySelector('.footer-area');
+                if (!footer) {
+                    footer = document.createElement('div');
+                    footer.className = 'footer-area';
+                    fonte.parentNode.insertBefore(footer, fonte);
+                    footer.appendChild(fonte);
+                }
+                footer.appendChild(btn);
+            } else {
+                card.appendChild(btn);
+            }
+        });
+    }
+
+    function removeMobileSpeakButtons() {
+        document.querySelectorAll('.card-speak-btn').forEach(btn => btn.remove());
+        document.querySelectorAll('.footer-area').forEach(area => {
+            const fonte = area.querySelector('.fonte');
+            if (fonte) {
+                area.parentNode.insertBefore(fonte, area);
+            }
+            area.remove();
+        });
+    }
+
+    function createFloatingButton() {
+        floatingButton = document.getElementById('speak-btn');
+        if (!floatingButton) {
+            floatingButton = document.createElement('button');
+            floatingButton.id = 'speak-btn';
+            floatingButton.className = 'floating-speak-btn';
+            floatingButton.setAttribute('aria-label', 'Ouvir texto selecionado');
+            floatingButton.title = 'Selecione um texto e clique para ouvir';
+            floatingButton.textContent = '🔊';
+            document.body.appendChild(floatingButton);
+        }
+
+        floatingButton.addEventListener('click', () => {
+            if (isSpeaking) return;
+            const selectedText = window.getSelection().toString().trim();
+            if (!selectedText) {
+                showMessage('Por favor, selecione um texto para ouvir.');
+                return;
+            }
+            speakText(selectedText, floatingButton);
+        });
+    }
+
+    function updateAccessibilityUI() {
+        const isMobile = window.matchMedia('(max-width: 768px)').matches;
+
+        if (isMobile) {
+            if (floatingButton) floatingButton.style.display = 'none';
+            addMobileSpeakButtons();
+        } else {
+            if (floatingButton) floatingButton.style.display = 'flex';
+            addFloatingButtonIfNeeded();
+            removeMobileSpeakButtons();
+        }
+    }
+
+    function addFloatingButtonIfNeeded() {
+        if (!floatingButton) createFloatingButton();
+        if (floatingButton) {
+            floatingButton.style.display = 'flex';
+        }
+    }
+
+    window.addEventListener('resize', updateAccessibilityUI);
+    window.addEventListener('orientationchange', updateAccessibilityUI);
+
+    document.addEventListener('DOMContentLoaded', () => {
+        createFloatingButton();
+        updateAccessibilityUI();
+    });
+})();
