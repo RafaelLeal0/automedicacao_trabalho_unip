@@ -845,6 +845,22 @@ body.dark-mode .riscos {
 .dado,
 .evitar-card {
     position: relative;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.card,
+.noticia,
+.dado,
+.evitar-card,
+.highlight,
+.sobre-texto {
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
 .card{

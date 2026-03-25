@@ -432,3 +432,48 @@ document.addEventListener('DOMContentLoaded', initTheme);
         updateAccessibilityUI();
     });
 })();
+
+// Acelerador de vídeo hero no mobile: garante que continue em play ao voltar para topo
+(function () {
+    const heroVideo = document.querySelector('.video-bg');
+    const heroSection = document.querySelector('.hero');
+
+    if (!heroVideo || !heroSection) return;
+
+    function ensureHeroVideoPlaying() {
+        if (heroVideo.paused || heroVideo.ended) {
+            const playPromise = heroVideo.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(() => {
+                    // pode falhar se sem gesto; ignora
+                });
+            }
+        }
+    }
+
+    const observer = new IntersectionObserver(entries => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                ensureHeroVideoPlaying();
+            } else {
+                // opcional: pausa para economia de dados/cpu
+                if (!heroVideo.paused) heroVideo.pause();
+            }
+        });
+    }, {threshold: 0.2});
+
+    observer.observe(heroSection);
+
+    window.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+            ensureHeroVideoPlaying();
+        }
+    });
+
+    window.addEventListener('scroll', () => {
+        const rect = heroSection.getBoundingClientRect();
+        if (rect.top <= 0 && rect.bottom >= 0) {
+            ensureHeroVideoPlaying();
+        }
+    });
+})();
